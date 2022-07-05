@@ -1,14 +1,20 @@
-from ast import Mult
-import imp
-# from keras_layer_normalization import LayerNormalization
+# --------------------------------------------------------
+# Vision Transformer
+# Licensed under The MIT License [see LICENSE for details]
+# Written by Yubo Liu
+# --------------------------------------------------------
+
 import tensorflow as tf
 from networks.vit_functions import gelu
 import numpy as np
 
 class PatchEmbedding(tf.keras.layers.Layer):
-
-    """
-    2D Image to Patch Embedding
+    """ 
+    Args:
+        img_size (int): Image size, 224 is set by default.
+        patch_size (tuple[int]): Size of patch, 16 is set by default.
+        embed_dim (int): Dimension for embedding output
+        name(str): Model Name.
     """
     def __init__(self, img_size=224, patch_size=16, embed_dim=768, name=None):
         super(PatchEmbedding, self).__init__(name=name)
@@ -31,6 +37,7 @@ class PatchEmbedding(tf.keras.layers.Layer):
         return x
 
 class MultHeadAttentionLayer(tf.keras.layers.Layer):
+
     def __init__(self, 
                  dim, 
                  num_heads=8, 
@@ -39,8 +46,6 @@ class MultHeadAttentionLayer(tf.keras.layers.Layer):
                  attn_drop_ratio=0.,
                  proj_drop_ratio=0., 
                  name=None):
-        # self.kernel_init_strategy = tf_keras.initializers.GlorotUniform()
-        # self.bias_init_strategy = tf_keras.initializers.Zeros()
         self.kernel_init_strategy = 'glorot_uniform'
         self.bias_init_strategy = tf.keras.initializers.Zeros()
         
@@ -168,7 +173,7 @@ class Encoder(tf.keras.layers.Layer):
             x = self.drop_path(x, training=training)
         x = inputs + x
         x1 = self.norm2(x)
-        x1 = self.mlp(x1) #! change x to x1
+        x1 = self.mlp(x1) 
         if isinstance(self.drop_path, tf.keras.layers.Activation):
             x1 = self.drop_path(x1)
         else:
