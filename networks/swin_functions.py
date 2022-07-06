@@ -14,7 +14,7 @@ def window_partition(x: tf.Tensor, windows_size: int):
     windows = tf.reshape(windows, [-1, windows_size, windows_size, C])
     return windows
 
-def windows_reverse(windows: tf.Tensor, windows_size: int, H: int, W: int):
+def window_reverse(windows: tf.Tensor, windows_size: int, H: int, W: int):
     """
         Args:
             windows: Tensor with size (num_windows*B, windows_size, windows_size, C)
@@ -28,4 +28,5 @@ def windows_reverse(windows: tf.Tensor, windows_size: int, H: int, W: int):
     x = tf.reshape(windows, (B, H//windows_size, W // windows_size, windows_size, windows_size, -1))
     x = tf.transpose(x, [0, 1, 3, 2, 4, 5])
     return tf.reshape(x, (B, H, W, -1))
-    
+
+
