@@ -14,6 +14,34 @@ from tensorflow.keras import Sequential
 from tensorflow.keras import initializers
 from networks.swin_functions import window_partition, window_reverse
 
+class PatchEmbedding(Layer):
+    """ 
+    Args:
+        img_size (int): Image size, 224 is set by default.
+        patch_size (tuple[int]): Size of patch, 16 is set by default.
+        embed_dim (int): Dimension for embedding output
+        name(str): Model Name.
+    """
+    def __init__(self, img_size=224, patch_size=16, embed_dim=768, name=None):
+        super(PatchEmbedding, self).__init__(name=name)
+        self.embed_dim = embed_dim
+        self.img_size = (img_size, img_size)
+        self.grid_size = (img_size // patch_size, img_size // patch_size)
+        self.num_patches = self.grid_size[0] * self.grid_size[1] # 32 by default.
+
+        self.proj = Conv2D(filters=embed_dim, kernel_size=patch_size,
+                                  strides=patch_size, padding='SAME',
+                                  bias_initializer=initializers.Zeros())
+
+    def call(self, inputs):
+        batch_size, height, width, channel = inputs.shape
+        assert height == self.img_size[0] and width == self.img_size[1], \
+            f"Input image size ({height}*{width}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
+        x = self.proj(inputs)
+        # [B, H, W, C] -> [B, H*W, C]
+        x = tf.reshape(x, (-1, self.num_patches, self.embed_dim))
+        return x
+
 class MlpBlock(Layer):
     """
         FFN in paper Swin Transformer: Hierarchical Vision Transformer using Shifted Windows
@@ -22,7 +50,7 @@ class MlpBlock(Layer):
             dropout_rate: Ratio of Dropout
             hidden_unit: out channel list
     """
-    def __init__(self, dropout_rate: float, hidden_unit: list, name: str = "mlp_block"):
+    def __init__(self, hidden_unit: list, dropout_rate: float = 0., name: str = "mlp_block"):
          super(MlpBlock, self).__init__(name=name)
          self.ffn = [Dense(units, activation=gelu if idx ==0 else None, bias_initializer=initializers.RandomNormal(stddev=1e-6))  \
             for (idx, units) in enumerate(hidden_unit)]
@@ -234,7 +262,7 @@ class PatchMerging(Layer):
              input_resolution (tuple[int]): Resolution of input feature.
              dim(int): Number of input channels
     """
-    def __init__(self, input_resolutions: tuple(int), embed_dim: int, out_dim: int=None, name: str=None, **kwargs):
+    def __init__(self, input_resolutions: tuple, embed_dim: int, out_dim: int=None, name: str=None, **kwargs):
         super(PatchMerging, self).__init__(name=name)
         self.input_resolution = input_resolutions
         self.embed_dim = embed_dim
