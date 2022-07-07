@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import sys
+from scipy.fftpack import shift
 sys.path.append('..')
 # from networks.vit import MLP, Encoder, PatchEmbedding, MultHeadAttentionLayer, \
 #                         ClassToken_PosEmbed, Encoder, VisionTransformer
@@ -48,6 +49,17 @@ def attention_test():
     out = attn_model(test_data)
     return out
 
+def attention_mask_test():
+    swin_transformer_block = SwinTransformerBlock(
+            input_resolution=(56, 56),
+            dim=96,
+            windows_size=7,
+            num_heads=6
+            )
+    attn_mask = swin_transformer_block.get_attn_mask()
+    return attn_mask
+
+
 def window_partition_test():
     test_data = tf.ones(shape=(1, 14, 14, 768))
     x_windows = window_partition(test_data, 7)
@@ -59,13 +71,24 @@ def mlp_test():
     out = mlp_model(test_data)
     return out
 
-def encoder():
+def encoder_wsa():
     test_data = tf.ones(shape=(4, 3136, 96))
     swin_transformer_block = SwinTransformerBlock(
             input_resolution=(56, 56),
             dim=96,
             windows_size=7,
             num_heads=6
+            )
+    out = swin_transformer_block(test_data)
+    return out
+
+def encoder_swsa():
+    test_data = tf.ones(shape=(4, 3136, 96))
+    swin_transformer_block = SwinTransformerBlock(
+            input_resolution=(56, 56),
+            dim=96,
+            windows_size=7,
+            num_heads=6, shift_size= 7//2
             )
     out = swin_transformer_block(test_data)
     return out
@@ -86,7 +109,9 @@ def main():
     general_test(mlp_test, 'mlp layer')
     general_test(window_partition_test, 'window partition')
     general_test(attention_test, 'attention')
-    general_test(encoder, 'encoder block')
+    general_test(encoder_wsa, 'encoder block')
+    general_test(attention_mask_test, 'attention_mask')
+    general_test(encoder_swsa, 'encoder_block_swsa')    
     #general_test(vit_test, "vision transformer")
     
 if __name__ == "__main__":

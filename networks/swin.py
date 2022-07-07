@@ -106,6 +106,12 @@ class WindowAttention(Layer):
         attention = tf.matmul(a = query, b = key, transpose_b=True) * self.scale
         #TODO relative_position_bias.
         if mask is not None:
+            # mask'shape -> [num_win, ws*ws, ws*ws]
+            num_win = mask.shape[0]
+            attention = tf.reshape(attention, (-1, num_win, self.num_heads, N, N))
+            attention = attention + tf.expand_dims(mask, 1)[None, ...]
+            attention = tf.reshape(attention, (-1, self.num_heads, N, N))
+            print('attention shape -> ', attention.shape)
             attention = tf.nn.softmax(attention, axis=-1)
         else: 
             attention = tf.nn.softmax(attention, axis=-1)
@@ -201,6 +207,7 @@ class SwinTransformerBlock(Layer):
             self.attn_mask = self.get_attn_mask()
         else:
             self.attn_mask = None
+
     def call(self,  x: tf.Tensor, return_attns=False):
         H, W =  self.input_resolution
         B, N, C = x.shape[0], x.shape[1], x.shape[2]
@@ -209,9 +216,9 @@ class SwinTransformerBlock(Layer):
         x = self.norm1(x) # x'shape -> [B, N, C]
         x = tf.reshape(x, (-1, H, W, C))
 
-        #TODO cyclic shift
+        #cyclic shift
         if self.shift_size > 0:
-            shifted_x = x
+            shifted_x = tf.roll(x, shift=(-self.shift_size, -self.shift_size), axis=(1, 2))
         else:
             shifted_x = x
 
@@ -228,9 +235,9 @@ class SwinTransformerBlock(Layer):
         attn_windows = tf.reshape(attn_windows, (-1, self.windows_size, self.windows_size, C))
         # shifted_x'shape -> [B, H, W, C]
         shifted_x = window_reverse(attn_windows, self.windows_size, H, W)
-        #TODO reverse cyclic shift
+        # reverse cyclic shift
         if self.shift_size > 0:
-            x = shifted_x
+            x = tf.roll(shifted_x, shift=(self.shift_size, self.shift_size), axis=(1, 2))
         else:
             x = shifted_x
         # x'shape -> [B, H*W, C]
@@ -250,9 +257,31 @@ class SwinTransformerBlock(Layer):
             return x
 
     def get_attn_mask(self):
-        return None
-
-
+        H, W = self.input_resolution
+        img_mask = np.zeros((1, H, W, 1)) # img_mask'shape -> [1, H, W, 1]
+        cnt = 0
+        for h in (
+                slice(0, -self.windows_size),
+                slice(-self.windows_size, -self.shift_size),
+                slice(-self.shift_size, None)
+                ):
+            for w in (
+                    slice(0, -self.windows_size),
+                    slice(-self.windows_size, -self.shift_size),
+                    slice(-self.shift_size, None)
+                    ):
+                img_mask[:, h, w, :] = cnt
+                cnt += 1
+        img_mask = tf.convert_to_tensor(img_mask, dtype='float32')
+        mask_windows = window_partition(
+                img_mask, self.windows_size) # mask_windows'shape -> [num_win, ws, ws, 1]
+        # mask_windows' shape -> [num_win, ws*ws, 1]
+        mask_windows = tf.reshape(mask_windows, (-1, self.windows_size*self.windows_size))
+        # mask_windows' shape -> [num_wind, ws*ws, ws*ws]
+        attn_mask = tf.expand_dims(mask_windows, 1) - tf.expand_dims(mask_windows, 2)
+        attn_mask = tf.where(attn_mask != 0, -100.0, attn_mask)
+        attn_mask = tf.where(attn_mask == 0, 0.0, attn_mask)
+        return attn_mask
 
 class PatchMerging(Layer):
     """
